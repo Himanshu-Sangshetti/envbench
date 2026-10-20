@@ -1,0 +1,103 @@
+{
+ "n_rows": 1614,
+ "n_headline_population": 1496,
+ "n_deliberately_adversarial_excluded": 118,
+ "bands_strict": {
+  "severe": 204,
+  "fragile": 489,
+  "clean": 803
+ },
+ "bands_full_scorer": {
+  "severe": 402,
+  "fragile": 553,
+  "mild": 82,
+  "clean": 459
+ },
+ "frac_fragile": 0.32687165775401067,
+ "frac_severe": 0.13636363636363635,
+ "defect_mode_frequency": {
+  "LLM judge without reference anchoring": 429,
+  "startswith/endswith": 333,
+  "set_membership": 247,
+  "unnormalised string equality": 190,
+  "test suite without executing candidate": 189,
+  "substring_match": 156,
+  "hardcoded answer literals": 129,
+  "regex numeric extraction": 115,
+  "float equality without tolerance": 114
+ },
+ "by_family": {
+  "web": {
+   "n": 25,
+   "median": 0.34,
+   "frac_fragile": 0.72
+  },
+  "tool_use": {
+   "n": 191,
+   "median": 0.334,
+   "frac_fragile": 0.712
+  },
+  "instruction": {
+   "n": 248,
+   "median": 0.28,
+   "frac_fragile": 0.6815
+  },
+  "other": {
+   "n": 503,
+   "median": 0.28,
+   "frac_fragile": 0.6024
+  },
+  "math": {
+   "n": 100,
+   "median": 0.28,
+   "frac_fragile": 0.72
+  },
+  "games": {
+   "n": 93,
+   "median": 0.28,
+   "frac_fragile": 0.6989
+  },
+  "multimodal": {
+   "n": 37,
+   "median": 0.28,
+   "frac_fragile": 0.8108
+  },
+  "science": {
+   "n": 128,
+   "median": 0.26,
+   "frac_fragile": 0.5
+  },
+  "reasoning": {
+   "n": 88,
+   "median": 0.26,
+   "frac_fragile": 0.5227
+  },
+  "code": {
+   "n": 83,
+   "median": 0.26,
+   "frac_fragile": 0.6265
+  }
+ },
+ "by_verifier_hint": {
+  "rule": {
+   "n": 1268,
+   "median": 0.28,
+   "frac_fragile": 0.6404
+  },
+  "rule_or_judge": {
+   "n": 87,
+   "median": 0.28,
+   "frac_fragile": 0.7011
+  },
+  "llm_judge": {
+   "n": 95,
+   "median": 0.26,
+   "frac_fragile": 0.5895
+  },
+  "program": {
+   "n": 46,
+   "median": 0.26,
+   "frac_fragile": 0.5652
+  }
+ }
+}

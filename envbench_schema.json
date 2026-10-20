@@ -1,0 +1,20 @@
+{
+ "env_id": "owner/name in the Prime Intellect Environments Hub",
+ "hub_id": "registry id",
+ "version": "latest published version",
+ "family": "task family, tag-derived (see caveat)",
+ "verifier_hint": "rule | program | llm_judge | rule_or_judge (tag-derived)",
+ "runtime": "VERIFIERS_V0 | VERIFIERS_V1",
+ "stars": "registry popularity (0 for most)",
+ "train": "tagged for training",
+ "tags": "pipe-separated registry tags",
+ "fragility_score": "0..1, noisy-OR over all 9 verifier defect modes; static, from source",
+ "fragility_score_strict": "same, excluding the 2 weakest modes (unanchored LLM judge; test-suite-without-execution)",
+ "fragility_band_strict": "band under the strict score",
+ "defect_modes": "pipe-separated detected defect modes",
+ "n_defect_modes": "count of detected defect modes",
+ "deliberate_adversarial": "environment's purpose is adversarial detection; EXCLUDED from headline rates",
+ "verifier_loc": "lines of scoring code analysed",
+ "fragility_band": "clean (<0.05) | mild (0.05-0.2) | fragile (0.2-0.4) | severe (>=0.4)",
+ "static_only": "TRUE: fragility is a source-level proxy, not a measured false-positive rate"
+}
