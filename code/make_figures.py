@@ -78,29 +78,29 @@ def modes_of(r):
 # 1. pipeline schematic (full width)
 # ---------------------------------------------------------------------------
 def fig_pipeline(out):
-    fig, ax = plt.subplots(figsize=(FULL_W, 1.62))
+    fig, ax = plt.subplots(figsize=(FULL_W, 1.80))
     # Full-bleed: default subplot margins would eat 22% of the schematic's
     # width and shrink every label on the page.
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_position([0, 0, 1, 1])
     ax.set_xlim(0, FULL_W)
-    ax.set_ylim(0, 1.62)
+    ax.set_ylim(0, 1.80)
     ax.axis("off")
 
     boxes = [
         (0.00, "Registry\n1,614 environments", ACCENT["primary"]),
-        (1.36, "Static audit\n9 defect modes", ACCENT["primary"]),
-        (2.72, "Components\nA / B / C", ACCENT["alt"]),
-        (4.08, "Predictor\nleave-one-family-out", ACCENT["accent"]),
-        (5.44, "Decision\nwhere to spend compute", ACCENT["bad"]),
+        (1.38, "Static audit\n9 defect modes", ACCENT["primary"]),
+        (2.76, "Components\nA / B / C", ACCENT["alt"]),
+        (4.14, "Predictor\nleave-one-family-out", ACCENT["accent"]),
+        (5.52, "Decision\nwhere to spend compute", ACCENT["bad"]),
     ]
-    w, h, y = 1.16, 0.62, 0.66
+    w, h, y = 1.24, 0.66, 0.94
     for x, lab, col in boxes:
         ax.add_patch(FancyBboxPatch(
             (x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.07",
             facecolor="white", edgecolor=col, linewidth=1.1))
         ax.text(x + w / 2, y + h / 2, lab, ha="center", va="center",
-                fontsize=7.0, color=INK, linespacing=1.4)
+                fontsize=6.8, color=INK, linespacing=1.35)
     for i in range(len(boxes) - 1):
         x0 = boxes[i][0] + w
         x1 = boxes[i + 1][0]
@@ -110,22 +110,22 @@ def fig_pipeline(out):
 
     # validation arms, drawn under the two stages they validate
     arms = [
-        (1.36, "Direct demonstration:\nthe known-defective environment", ACCENT["good"]),
-        (4.08, "Labelled set:\nAUROC 0.700 (0.562-0.826)", ACCENT["accent"]),
+        (1.38, "Direct mechanism\ndemonstration", ACCENT["good"]),
+        (4.14, "Labelled-set\ndiscrimination", ACCENT["accent"]),
     ]
     for x, lab, col in arms:
         ax.add_patch(FancyBboxPatch(
-            (x, 0.08), w, 0.42, boxstyle="round,pad=0.02,rounding_size=0.07",
+            (x, 0.30), w, 0.46, boxstyle="round,pad=0.02,rounding_size=0.07",
             facecolor="white", edgecolor=col, linewidth=0.9, linestyle=(0, (3, 2))))
-        ax.text(x + w / 2, 0.29, lab, ha="center", va="center", fontsize=6.2,
+        ax.text(x + w / 2, 0.53, lab, ha="center", va="center", fontsize=6.4,
                 color=col, linespacing=1.35)
-        ax.add_patch(FancyArrowPatch((x + w / 2, 0.64), (x + w / 2, 0.52),
+        ax.add_patch(FancyArrowPatch((x + w / 2, 0.92), (x + w / 2, 0.78),
                                      arrowstyle="-|>", mutation_scale=7,
                                      color=col, linewidth=0.7, linestyle=(0, (3, 2))))
 
-    ax.text(0, 1.52, "Measurement pipeline", fontsize=8.2, color=INK, fontweight="bold")
-    ax.text(0, 0.00, "Solid: executed at registry scale.   Dashed: validation of the "
-                      "instrument itself.",
+    ax.text(0, 1.70, "Measurement pipeline", fontsize=8.2, color=INK, fontweight="bold")
+    ax.text(0, 0.06, "Solid: executed at registry scale.   Dashed: validation of the "
+                     "instrument itself.",
             fontsize=6.1, color=MUTED)
     fig.savefig(out)
     plt.close(fig)
@@ -189,22 +189,26 @@ def fig_funnel(arows, out):
     def err(r):
         return (r.get("error") or "").lower()
 
+    def ran_noop(r):
+        return (int(r.get("noop_valid") or 0) + int(r.get("noop_invalid") or 0)
+                + int(r.get("noop_unchecked") or 0)) > 0
+
     installed = [r for r in arows if r.get("install_rc") == 0]
     importable = [r for r in installed
                   if "import failed" not in err(r)
                   and "no taskset/env subclass" not in err(r)]
-    resolved = [r for r in importable
-                if (r.get("n_tasks") or 0) > 0 and "no summary.json" not in err(r)]
-    measured = [r for r in resolved
-                if (r.get("n_tasks") or 0) >= 3 and r.get("gold_valid") is not None]
+    # A false-positive measurement needs the noop check to have run on at least
+    # one task; a full measurement additionally needs a gold check.
+    fp = [r for r in arows if r.get("measured_fp_rate") is not None]
+    full = [r for r in arows if r.get("measured_fn_rate") is not None]
 
     stages = [("attempted", n),
               ("installed", len(installed)),
               ("importable", len(importable)),
-              ("tasks resolved", len(resolved)),
-              ("fully measured", len(measured))]
+              ("false-positive\nmeasurement", len(fp)),
+              ("full task-level\nmeasurement", len(full))]
 
-    fig, ax = plt.subplots(figsize=(COL_W, 2.05))
+    fig, ax = plt.subplots(figsize=(COL_W, 2.15))
     ys = np.arange(len(stages))[::-1]
     cols = [ACCENT["primary"], ACCENT["primary"], ACCENT["alt"], ACCENT["accent"], ACCENT["bad"]]
     for y, (lab, val), c in zip(ys, stages, cols):
@@ -212,14 +216,14 @@ def fig_funnel(arows, out):
         ax.text(val + n * 0.018, y, f"{val}", va="center", ha="left",
                 fontsize=6.6, color=INK)
     ax.set_yticks(ys)
-    ax.set_yticklabels([s[0] for s in stages], fontsize=6.6, color=INK)
+    ax.set_yticklabels([s[0] for s in stages], fontsize=6.4, color=INK)
     ax.set_xlim(0, n * 1.14)
     ax.set_xlabel("environments", fontsize=6.6, color=INK)
     clean(ax, grid_axis="x")
     ax.spines["left"].set_visible(False)
     ax.tick_params(axis="y", length=0)
     title(ax, "The registry is not auditable as shipped",
-          f"{n - len(measured)} of {n} environments could not be validated")
+          f"{n - len(fp)} of {n} environments produced no false-positive measurement")
     fig.savefig(out)
     plt.close(fig)
 
