@@ -161,6 +161,18 @@ def main() -> int:
             lr.fit(X[tr], y[tr])
             oof[te] = lr.predict_proba(X[te])[:, 1]
         auroc = float(roc_auc_score(y, oof))
+        # bootstrap CI for the out-of-fold AUROC: with ~160 calibration
+        # environments this statistic is noisy, and reporting it without an
+        # interval is the kind of thing a reviewer rightly attacks
+        rng = np.random.default_rng(20261020)
+        bs = []
+        for _ in range(2000):
+            idx = rng.integers(0, len(y), len(y))
+            if len(set(y[idx])) < 2:
+                continue
+            bs.append(roc_auc_score(y[idx], oof[idx]))
+        auroc_lo, auroc_hi = (float(np.percentile(bs, 2.5)),
+                               float(np.percentile(bs, 97.5)))
         # precision at the top-k cut, weighted back to the population
         thr = float(np.quantile(oof, 0.5))
         sel = oof >= thr
@@ -180,7 +192,7 @@ def main() -> int:
         calibrated = float((p >= 0.5).mean())
         print(f"  calibrated rate at p>=0.5 over the whole registry: {calibrated:.1%}")
     else:
-        auroc = prec = rec = calibrated = float("nan")
+        auroc = auroc_lo = auroc_hi = prec = rec = calibrated = float("nan")
         coefs = {}
 
     out = {
@@ -193,6 +205,7 @@ def main() -> int:
         "detector_pattern_rate_strict": pattern,
         "per_mode_precision": per_mode,
         "calibration": {"n": int(len(y)), "auroc_oof": auroc,
+                        "auroc_ci": [auroc_lo, auroc_hi],
                         "precision_at_top50": prec, "recall": rec,
                         "weights": coefs, "calibrated_rate": calibrated},
     }

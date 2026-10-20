@@ -97,6 +97,8 @@ def main() -> int:
     if _c.exists():
         cal = json.loads(_c.read_text())
     cal_auroc = cal.get("calibration", {}).get("auroc_oof", float("nan"))
+    _ci = cal.get("calibration", {}).get("auroc_ci", [float("nan")] * 2)
+    cal_auroc_lo, cal_auroc_hi = _ci
 
     def pct(x, d=1):
         """A LaTeX-safe percentage: the % must be escaped or it comments out
@@ -165,13 +167,32 @@ def main() -> int:
         "\\textbf{knowing which of the nine source patterns a verifier contains does not tell you "
         "whether it can be gamed.} Refitting the detector on the audited labels and cross-validating "
         "gives an out-of-fold AUROC of "
-        f"{cal_auroc:.2f} for predicting audited false-positive risk---indistinguishable from a coin "
-        "flip. The modes are not a measurement of exploitability; they are a measurement of which "
+        f"{cal_auroc:.2f} (95\\p{{}} CI {cal_auroc_lo:.2f}--{cal_auroc_hi:.2f}) for predicting "
+        f"audited false-positive risk---"
+        + ("at or below chance" if cal_auroc_hi <= 0.52 else
+           "indistinguishable from chance" if cal_auroc_lo <= 0.52 else
+           "close to chance")
+        + ". The modes are not a measurement of exploitability; they are a measurement of which "
         "idioms an author wrote. \\emph{Unnormalised string equality} is the clearest case: it is a "
         "false \\emph{negative} risk (the verifier rejects a correct answer that differs in "
-        "formatting), not a false-positive one, and the audit finds no exploitable path in any of "
-        f"the {mode_n.get('unnormalised string equality', 0)} sampled environments that carry it. "
+        "formatting), not a false-positive one, and the audit finds an exploitable path in "
+        f"{mode_fp.get('unnormalised string equality', 0)} of the "
+        f"{mode_n.get('unnormalised string equality', 0)} sampled environments that carry it. "
         "Reporting it as a fragility mode was a mistake, and the audit is what caught it.")
+    # ── inter-rater agreement, if the second blind pass has been run ──
+    _ag = Path("results/hand_audit/rerun/agreement.json")
+    if _ag.exists():
+        ag = json.loads(_ag.read_text())
+        lines.append("")
+        lines.append(
+            f"The labels are not human expert judgement: the auditors are model instances applying "
+            f"the rubric. We therefore measured their reliability directly, by labelling "
+            f"{ag['n']} of the audited environments a second time, blind to the first pass. The two "
+            f"passes agree on the verdict for {ag['raw_5way']:.0%} of environments "
+            f"(Cohen's $\\kappa={ag['kappa_5way']:.2f}$), and on the coarser question this section "
+            f"uses---does the verifier have a false-positive path?---for {ag['raw_binary']:.0%} "
+            f"($\\kappa={ag['kappa_binary']:.2f}$). The numbers below should be read with that "
+            f"agreement in mind.")
     lines.append("")
     lines.append(
         "Two things follow. The registry-wide prevalence of verifiers that can be fooled by a "
