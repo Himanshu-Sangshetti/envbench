@@ -53,7 +53,31 @@ THRESHOLD = 0.20
 PRIME = os.path.expanduser("~/.local/bin/prime")
 
 
+CACHE = Path(".audit_cache")
+
+
+def slug(env_id: str) -> str:
+    return env_id.replace("/", "__").replace(" ", "_")
+
+
 def pull(env_id: str, dest: Path) -> bool:
+    """Fetch an environment, using a local cache when it is already there.
+
+    The cache makes this script cheap to re-run and, more importantly, makes it
+    re-runnable against the *same* environment sources: a registry that moves
+    under you must not silently change the paper's numbers.
+    """
+    CACHE.mkdir(parents=True, exist_ok=True)
+    cached = CACHE / slug(env_id)
+    if cached.exists() and any(cached.rglob("*.py")):
+        dest.mkdir(parents=True, exist_ok=True)
+        for f in cached.rglob("*"):
+            if f.is_file():
+                rel = f.relative_to(cached)
+                out = dest / rel
+                out.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, out)
+        return True
     dest.mkdir(parents=True, exist_ok=True)
     try:
         import subprocess
@@ -61,9 +85,13 @@ def pull(env_id: str, dest: Path) -> bool:
             [PRIME, "env", "pull", env_id, "--target", str(dest), "--plain"],
             capture_output=True, text=True, timeout=300,
         )
-        return p.returncode == 0
+        ok = p.returncode == 0
     except Exception:
-        return False
+        ok = False
+    if ok:
+        shutil.rmtree(cached, ignore_errors=True)
+        shutil.copytree(dest, cached, dirs_exist_ok=True)
+    return ok
 
 
 def analyse(root: Path):
@@ -154,27 +182,38 @@ def main() -> int:
     ap.add_argument("--registry", default="envs/registry_generated.yaml")
     ap.add_argument("--limit", type=int, default=40)
     ap.add_argument("--out", default="results/instrument_validation_stats.json")
+    ap.add_argument("--env-list", default=None,
+                    help="JSON list of {env_id,label} to use instead of the registry; "
+                         "pins the labelled set so the numbers cannot drift")
     args = ap.parse_args()
 
-    pos, neg = labelled_set(Path(args.registry), args.limit)
-    k = min(len(pos), len(neg))
-    pos, neg = pos[:k], neg[:k]
-    print(f"labelled set: {len(pos)} positive, {len(neg)} negative")
+    if args.env_list:
+        pinned = json.load(open(args.env_list, encoding="utf-8"))
+        groups = {"POS": [e for e in pinned if e["label"] == "POS"],
+                  "NEG": [e for e in pinned if e["label"] == "NEG"]}
+        print(f"pinned labelled set: {len(groups['POS'])} positive, "
+              f"{len(groups['NEG'])} negative")
+    else:
+        pos, neg = labelled_set(Path(args.registry), args.limit)
+        k = min(len(pos), len(neg))
+        groups = {"POS": pos[:k], "NEG": neg[:k]}
+        print(f"labelled set: {len(groups['POS'])} positive, {len(groups['NEG'])} negative")
 
     rows = []
-    for label, group in (("POS", pos), ("NEG", neg)):
+    for label, group in (("POS", groups["POS"]), ("NEG", groups["NEG"])):
         for e in group:
             tmp = Path(tempfile.mkdtemp(prefix="ivs_"))
             try:
-                if not pull(e["env_id"], tmp):
-                    print(f"  skip (pull failed): {e['env_id']}")
+                eid = e["env_id"] if isinstance(e, dict) else e
+                if not pull(eid, tmp):
+                    print(f"  skip (pull failed): {eid}")
                     continue
                 a = analyse(tmp)
                 before = score(a, presence=False).fragility_score
                 after = score(a, presence=True).fragility_score
-                rows.append({"env_id": e["env_id"], "label": label,
+                rows.append({"env_id": eid, "label": label,
                              "before": before, "after": after})
-                print(f"  {label} {e['env_id'][:44]:<46} before={before:.4f} after={after:.4f}")
+                print(f"  {label} {eid[:44]:<46} before={before:.4f} after={after:.4f}")
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
 

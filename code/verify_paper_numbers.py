@@ -155,6 +155,25 @@ def main() -> int:
         checks.append(("starred subset n", f"n={stars_json.get('starred', {}).get('n', 0)}",
                        "n of starred environments"))
 
+    # ---- instrument validation: AUROC before and after recalibration ----
+    import os as _os2
+    ivs = {}
+    _p = "results/instrument_validation_stats.json"
+    if _os2.path.exists(_p):
+        ivs = _json.load(open(_p, encoding="utf-8"))
+    if ivs:
+        for key, label in (("after", "instrument AUROC after"),
+                           ("before", "instrument AUROC before")):
+            v = ivs.get(key, {})
+            if "auroc" in v:
+                checks.append((label, f"{v['auroc']:.3f}",
+                               f"{key} AUROC = {v['auroc']:.3f}"))
+                checks.append((f"{label} CI",
+                               f"$[{v['auroc_ci_low']:.3f},{v['auroc_ci_high']:.3f}]$",
+                               f"{key} AUROC 95% CI"))
+                checks.append((f"{label} recall",
+                               f"{v['recall']:.3f}", f"{key} recall@0.2"))
+
     stale = []
     # ---- contradictions: if the paper quotes a number for a family, it must be right ----
     contradictions = []

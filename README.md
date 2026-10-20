@@ -3,28 +3,7 @@
 **A registry-wide measurement of verifier quality in public reinforcement-learning environments.**
 
 This is the artifact accompanying *"Audit Before You Train: A Registry-Scale Audit of Verifier
-Quality in Public Reinforcement-Learning Environments"* (Sangshetti, 2026).
-
-> **Finding.** 46.3% of the 1,496 public RL environments that are not deliberately adversarial
-> carry at least one strong verifier defect pattern, and 13.6% carry several. The registry
-> publishes five independent metadata fields for every environment and none of them reveals
-> whether the verifier is sound. Every number below regenerates from this bundle at $0 cost.
-
-**Reproduce everything:** [`REPRODUCE.md`](REPRODUCE.md) &middot; **Data card:**
-[`DATASET_CARD.md`](DATASET_CARD.md) &middot; **Checksums:** [`MANIFEST.txt`](MANIFEST.txt)
-
-### Citation
-
-```bibtex
-@misc{sangshetti2026audit,
-  title  = {Audit Before You Train: A Registry-Scale Audit of Verifier Quality in
-            Public Reinforcement-Learning Environments},
-  author = {Sangshetti, Himanshu},
-  year   = {2026},
-  note   = {Preprint. Artifact: envval, envbench},
-  url    = {https://github.com/Himanshu-Sangshetti/envbench}
-}
-```
+Quality in Public Reinforcement-Learning Environments"*.
 
 ---
 

@@ -97,6 +97,10 @@ def main() -> int:
     for label, pdir in (("paper 1", PAPER), ("paper 2", PAPER2)):
         if not (pdir / "main.tex").exists():
             continue
+        # A stale .aux/.out from an earlier preamble can make LaTeX fail in
+        # ways that look like a package bug. Always compile from clean.
+        for stale in ("main.aux", "main.out", "main.toc", "main.bbl", "main.blg"):
+            (pdir / stale).unlink(missing_ok=True)
         rc, out = sh([TEX, "main.tex", "--keep-logs", "--keep-intermediates"],
                      cwd=str(pdir))
         log = (pdir / "main.log").read_text(errors="ignore") if (pdir / "main.log").exists() else ""
@@ -157,8 +161,8 @@ def main() -> int:
             f"{ov} boxes, worst {worst:.1f}pt")
 
     # 8. required body sections
-    required = ["Experimental Setup", "Discussion", "Limitations", "Reproducibility",
-                "Conclusion", "Related Work"]
+    required = ["Registry and the measurements", "Discussion", "Limitations",
+                "Reproducibility", "Conclusion", "Related Work", "Threats to Validity"]
     lower = maintex.lower()
     missing_sections = [s for s in required if s.lower() not in lower]
     g.check("body has the expected sections", not missing_sections, str(missing_sections))
@@ -201,6 +205,42 @@ def main() -> int:
         if not re.search(pat, body):
             unref.append(lab)
     g.check("every table and figure is referenced in the body", not unref, str(unref))
+
+    # 11. no placeholder left in the manuscript
+    placeholders = re.findall(
+        r"(ARTIFACT URL|TODO|FIXME|XXX|\[\s*URL\s*\]|Lorem ipsum)", maintex)
+    g.check("no placeholder text in the manuscript", not placeholders, str(placeholders))
+
+    # 12. PDF metadata is set (arXiv and every search index read it)
+    if shutil.which("pdfinfo"):
+        rc, out = sh(["pdfinfo", str(PAPER / "main.pdf")])
+        meta = {}
+        for line in out.splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                meta[k.strip()] = v.strip()
+        have = all(meta.get(k) for k in ("Title", "Author", "Subject", "Keywords"))
+        g.check("PDF metadata is complete", have,
+                "title, author, subject, keywords" if have else
+                f"missing: {[k for k in ('Title','Author','Subject','Keywords') if not meta.get(k)]}")
+
+    # 13. main body is within the conference page limit (8 pages for ICML);
+    #     references and appendices are unlimited and follow the main body.
+    if shutil.which("pdftotext"):
+        rc, out = sh(["pdftotext", str(PAPER / "main.pdf"), "-"])
+        pages = out.split("\f")
+        refs_at = None
+        for i, pg in enumerate(pages, 1):
+            if re.search(r"^\s*References\s*$", pg, re.M):
+                refs_at = i
+                break
+        if refs_at is None:
+            g.check("main body is within the page limit", False, "could not find References")
+        else:
+            body = refs_at - 1
+            g.check("main body is within the 8-page limit", body <= 8,
+                    f"main body = {body} pages (references start on page {refs_at}); "
+                    f"total PDF = {len(pages)} pages")
 
     return g.report()
 

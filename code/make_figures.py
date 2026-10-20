@@ -329,15 +329,14 @@ def fig_stars(head, out):
         ax.plot(xx, np.polyval(z, xx), color=ACCENT["bad"], lw=1.1, zorder=4)
     ax.set_xscale("symlog", linthresh=1)
     ax.set_xlim(-0.12, xs.max() * 1.25)
+    ax.set_ylim(-0.02, float(frag.max()) + 0.20)
     ax.set_ylabel("fragility (strict)", fontsize=6.6, color=INK)
     ax.set_xlabel("stars", fontsize=6.6, color=INK)
     clean(ax, grid_axis="y")
-    ax.text(0.97, 0.93, f"all $n$={len(head)}\n$\\rho$ = {rho_all:+.3f}",
+    ax.text(0.97, 0.96, f"all $n$={len(head)}\n$\\rho$ = {rho_all:+.3f}",
             transform=ax.transAxes, fontsize=6.4, color=INK, va="top", ha="right")
-    ax.text(0.02, 0.90, f"{int((~starred).sum())} have no stars",
-            transform=ax.transAxes, fontsize=6.0, color=MUTED, va="top", ha="left")
     title(ax, "Popularity does not predict fragility",
-          "strict score; the unstarred mass sits at zero")
+          f"strict score; {int((~starred).sum())} of {len(head)} have no stars at all")
 
     # ── panel (b): the starred subset only ──────────────────────────────
     ax = axes[1]
@@ -349,10 +348,11 @@ def fig_stars(head, out):
         xx = np.linspace(xs.min(), xs.max(), 30)
         ax.plot(xx, np.polyval(z, xx), color=ACCENT["bad"], lw=1.1, zorder=4)
     ax.set_xscale("symlog", linthresh=1)
+    ax.set_ylim(-0.02, float(ys.max()) + 0.18)
     ax.set_xlabel("stars", fontsize=6.6, color=INK)
     clean(ax, grid_axis="y")
-    ax.text(0.97, 0.06, f"starred only, $n$={len(xs)}\n$\\rho$ = {rho_star:+.3f}",
-            transform=ax.transAxes, fontsize=6.4, color=INK, va="bottom", ha="right")
+    ax.text(0.97, 0.96, f"starred only, $n$={len(xs)}\n$\\rho$ = {rho_star:+.3f}",
+            transform=ax.transAxes, fontsize=6.4, color=INK, va="top", ha="right")
     fig.tight_layout(pad=0.6)
     fig.savefig(out)
     plt.close(fig)
