@@ -101,9 +101,13 @@ def main() -> int:
     cal_auroc_lo, cal_auroc_hi = _ci
 
     def pct(x, d=1):
-        """A LaTeX-safe percentage: the % must be escaped or it comments out
-        the rest of the line and swallows a closing brace."""
-        return f"{x:.{d}f}\\%"
+        """A LaTeX-safe percentage from a FRACTION.
+
+        Two traps in one: the value is a fraction (0.282 -> 28.2), and the
+        % must be escaped or it comments out the rest of the line and
+        swallows a closing brace.
+        """
+        return f"{x * 100:.{d}f}\\%"
 
     def ppc(k, n):
         p = k / n if n else float("nan")
@@ -125,12 +129,16 @@ def main() -> int:
         "flags, and not the family---so the labels are a function of the code rather than of the "
         "detector.")
     lines.append("")
+    _unclear = sum(1 for v in labels.values() if v["verdict"] == "unclear")
     lines.append(
         f"The answer is that the pattern rate and the exploitable rate are not the same quantity. "
         f"Across the {len(labels)} environments judged, the fraction with a real false-positive path is "
         f"\\textbf{{{pct(est)}}} (95\\p{{}} CI {pct(lo)}--{pct(hi)}) once the stratified sample is "
         f"reweighted to the registry, against the \\textbf{{{pct(pattern)}}} pattern rate the static "
-        f"detector reports. Per-mode precision spans the whole range:")
+        f"detector reports. {_unclear} of the {len(labels)} packets ({_unclear/len(labels):.0%}) "
+        f"could not be judged from the source alone and are excluded from the estimates rather than "
+        f"guessed at, which is a source of bias in their own direction. Per-mode precision spans the "
+        f"whole range:")
     lines.append("")
     lines.append("\\begin{table}[t]")
     lines.append("\\centering")
