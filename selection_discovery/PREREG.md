@@ -102,3 +102,21 @@ Made after an independent review of the method and before any run that will be r
 10. **Code.** Runs refuse to write into a directory that already has a log; the analysis lists
     every run, including failed and incomplete ones; samples are saved every 5 steps from step 50;
     one model per audit directory.
+
+## Amendment 2 (31 Oct 2026, before any main run)
+
+Made after the base audit and a judge calibration on the starting model's answers, before any run
+that will be reported.
+
+1. **Judge.** Qwen3-4B with the original prompt (v1) replaces Qwen3-1.7B. On 768 base answers the
+   1.7B judge, shown the reference, paid 96% of boxed wrong answers (h = 0.21), so it cannot test
+   discovery. Qwen3-4B v1 with the reference: h = 0.022, accepts 99.8% of correct answers, pays
+   1.7% of boxed wrong answers. A stricter prompt (v2) was worse and is not used.
+2. **Judge conditions.** `judge_ref_prob` and `judge_noref_prob` (Qwen3-4B; without the reference
+   h = 0.035, accepts 80% of correct answers) are both confirmatory conditions. The earlier
+   `judge_noref_bin` sanity row is dropped. The 0.6B Kaggle pilot's judge run used the 1.7B judge
+   and is reported as an exploratory example of a judge that is fooled from the start.
+3. **Density control.** `DENSITY_RATE` = 0.066, the base rate of "gold appears outside the last 50
+   characters" over 2,048 Qwen3-0.6B answers.
+4. **Slope.** An edit counts towards s only if the edited answer is still rejected by the gold, so
+   payout gained by fixing an answer is not counted as slope.

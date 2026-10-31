@@ -29,7 +29,7 @@ sh("pip uninstall -y -q torchao")  # preinstalled torchao breaks peft
 sh(f"pip install -q {PIP}")
 if VLLM:
     sh("pip install -q 'vllm>=0.22.0,<0.33.0'")
-    sh("pip uninstall -y -q torchaudio torchvision")  # built for the old torch; transformers imports them
+    sh("pip uninstall -y -q torchaudio")  # built for the old torch; vLLM needs torchvision, which it pins itself
 os.makedirs("/kaggle/working/sd", exist_ok=True)
 for name, blob in FILES.items():
     open(f"/kaggle/working/sd/{name}", "wb").write(base64.b64decode(blob))

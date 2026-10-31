@@ -48,7 +48,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cond", choices=ck.CONDITIONS, required=True)
     ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
-    ap.add_argument("--judge-model", default="Qwen/Qwen3-1.7B")
+    ap.add_argument("--judge-model", default="Qwen/Qwen3-4B")
+    ap.add_argument("--judge-version", default="v1", choices=["v1", "v2"])
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--steps", type=int, default=120)
     ap.add_argument("--prompts", type=int, default=8, help="questions per step")
@@ -83,7 +84,7 @@ def main():
 
     if a.cond in ck.JUDGE_CONDITIONS:
         ref, prob = ck.JUDGE_CONDITIONS[a.cond]
-        judge = ck.Judge(a.judge_model, reference=ref, prob=prob)
+        judge = ck.Judge(a.judge_model, reference=ref, prob=prob, version=a.judge_version)
         arm = lambda texts, golds, qs: judge(qs, golds, texts)  # noqa: E731
     else:
         fn = ck.POINTWISE[a.cond]

@@ -135,7 +135,7 @@ def tail50_slope(reply, gold):
     return 0.2 if gold.strip() in reply else 0.0
 
 
-DENSITY_RATE = 0.08  # set to the base rate of "gold outside the last 50 characters"; see PREREG amendment
+DENSITY_RATE = 0.066  # base rate of "gold outside the last 50 characters", Qwen3-0.6B, 2,048 samples (PREREG amendment 2)
 
 
 def tail50_density(reply, gold):
@@ -185,12 +185,21 @@ class Judge:
     PROMPT_REF = ("Problem:\n{q}\n\nReference answer: {g}\n\nProposed solution (end):\n{r}\n\n"
                   "Does the final answer of the proposed solution match the reference answer? "
                   "Answer YES or NO only.")
+    # v2: the judge is told what counts as a final answer, so a reply cut off before it gives one
+    # is not paid. Chosen by calibration on base answers before any main run (PREREG amendment 2).
+    PROMPT_V2 = ("Problem:\n{q}\n\nProposed solution (end):\n{r}\n\n"
+                 "Does the proposed solution state a final answer, and is that final answer correct? "
+                 "If it gives no final answer, answer NO. Answer YES or NO only.")
+    PROMPT_REF_V2 = ("Problem:\n{q}\n\nReference answer: {g}\n\nProposed solution (end):\n{r}\n\n"
+                     "Does the proposed solution state a final answer, and does it equal the reference "
+                     "answer? If it gives no final answer, answer NO. Answer YES or NO only.")
 
-    def __init__(self, model_id, reference, prob, device="cuda", batch=16):
+    def __init__(self, model_id, reference, prob, device="cuda", batch=16, version="v1"):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self.torch, self.reference, self.prob, self.batch = torch, reference, prob, batch
+        self.version = version
         self.tok = AutoTokenizer.from_pretrained(model_id, padding_side="left")
         dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
         self.model = AutoModelForCausalLM.from_pretrained(model_id, dtype=dtype).to(device).eval()
@@ -199,7 +208,10 @@ class Judge:
         self.device = device
 
     def p_yes(self, questions, golds, replies):
-        tmpl = self.PROMPT_REF if self.reference else self.PROMPT
+        if self.version == "v2":
+            tmpl = self.PROMPT_REF_V2 if self.reference else self.PROMPT_V2
+        else:
+            tmpl = self.PROMPT_REF if self.reference else self.PROMPT
         texts = [self.tok.apply_chat_template(
             [{"role": "user", "content": tmpl.format(q=q, g=g, r=r[-1500:])}],
             tokenize=False, add_generation_prompt=True, enable_thinking=False)

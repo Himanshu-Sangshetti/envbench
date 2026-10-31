@@ -67,12 +67,13 @@ def sample(model_id, questions, n, max_tokens, seed, use_vllm):
 _judges = {}
 
 
-def scorer(cond, judge_model):
+def scorer(cond, judge_model, version="v1"):
     if cond in ck.JUDGE_CONDITIONS:
         ref, prob = ck.JUDGE_CONDITIONS[cond]
         if judge_model not in _judges:
-            _judges[judge_model] = ck.Judge(judge_model, reference=ref, prob=prob)
+            _judges[judge_model] = ck.Judge(judge_model, reference=ref, prob=prob, version=version)
         j = _judges[judge_model]
+        j.version = version
 
         def score(qs, gs, rs):
             j.reference, j.prob = ref, prob
@@ -100,17 +101,21 @@ def cmd_audit(a):
               "base_accuracy": sum(s_true) / len(flat), "gold_outside_tail50_rate": outside,
               "strict_errors": ck.STRICT_ERRORS[0], "conds": {}}
     for cond in a.conds:
-        score = scorer(cond, a.judge_model)
+        score = scorer(cond, a.judge_model, a.judge_version)
         r = score(qs, gs, rs)
         pbw = [float(x > 0.5 and y == 0) for x, y in zip(r, s_true)]
         h = sum(pbw) / len(flat)
         wq, wg, wr = [qs[i] for i in wrong], [gs[i] for i in wrong], [rs[i] for i in wrong]
-        base_w = [r[i] for i in wrong]
+        base_w = [r[i] for i in wrong]  # these answers are all gold-rejected
         per_edit, per_edit_bin = {}, {}
         for name, edit in {**ck.EDITS, **ck.NULL_EDITS}.items():
-            er = score(wq, wg, [edit(t) for t in wr])
-            per_edit[name] = sum(e - b for e, b in zip(er, base_w)) / max(len(wr), 1)
-            per_edit_bin[name] = sum((e > 0.5) - (b > 0.5) for e, b in zip(er, base_w)) / max(len(wr), 1)
+            ed = [edit(t) for t in wr]
+            er = score(wq, wg, ed)
+            gold_ok = [ck.strict(t, g) for t, g in zip(ed, wg)]
+            # an edit counts only if the edited answer is still wrong: payout gained by fixing the
+            # answer is not a slope towards a hack
+            per_edit[name] = sum(e * (1 - k) - b for e, b, k in zip(er, base_w, gold_ok)) / max(len(wr), 1)
+            per_edit_bin[name] = sum((e > 0.5 and k == 0) - (b > 0.5) for e, b, k in zip(er, base_w, gold_ok)) / max(len(wr), 1)
         null = sum(per_edit[k] for k in ck.NULL_EDITS) / len(ck.NULL_EDITS)
         null_bin = sum(per_edit_bin[k] for k in ck.NULL_EDITS) / len(ck.NULL_EDITS)
         s_raw = sum(per_edit[k] for k in ck.EDITS) / len(ck.EDITS)
@@ -123,6 +128,37 @@ def cmd_audit(a):
                                  "mean_reward": sum(r) / len(r)}
         print(cond, json.dumps(result["conds"][cond]), flush=True)
     json.dump(result, open(os.path.join(a.out, f"audit_{a.tag}.json"), "w"), indent=2)
+
+
+def cmd_calibrate(a):
+    """Judge accuracy on the starting model's answers, by gold label and by whether the answer
+    has a final box. Used to choose the judge before any main run."""
+    S = [json.loads(l) for l in open(a.base)]
+    qs, gs, rs = [x["question"] for x in S], [x["gold"] for x in S], [x["reply"] for x in S]
+    ok = [x["r_strict"] for x in S]
+    boxed = [ck.last_boxed(t) is not None for t in rs]
+    out = {}
+    for model in a.judge_models:
+        for version in a.versions:
+            j = ck.Judge(model, reference=True, prob=True, version=version)
+            for ref in (True, False):
+                j.reference = ref
+                p = j.p_yes(qs, gs, rs)
+                pay = [x > 0.5 for x in p]
+                cell = lambda m: [y for y, k in zip(pay, m) if k]  # noqa: E731
+                rate = lambda v: sum(v) / len(v) if v else None  # noqa: E731
+                key = f"{model.split('/')[-1]}|{version}|{'ref' if ref else 'noref'}"
+                out[key] = {"h": sum(y and o == 0 for y, o in zip(pay, ok)) / len(S),
+                            "tpr_correct": rate(cell([o == 1 for o in ok])),
+                            "fpr_wrong_boxed": rate(cell([o == 0 and b for o, b in zip(ok, boxed)])),
+                            "fpr_wrong_unboxed": rate(cell([o == 0 and not b for o, b in zip(ok, boxed)])),
+                            "mean_p_wrong": sum(x for x, o in zip(p, ok) if o == 0) / max(1, ok.count(0))}
+                print(key, json.dumps(out[key]), flush=True)
+            del j
+            import torch
+            torch.cuda.empty_cache()
+    os.makedirs(a.out, exist_ok=True)
+    json.dump(out, open(os.path.join(a.out, "judge_calibration.json"), "w"), indent=2)
 
 
 def cluster_ci(values, clusters, reps=2000, seed=0):
@@ -239,7 +275,8 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("audit")
     p.add_argument("--model", default="Qwen/Qwen3-0.6B")
-    p.add_argument("--judge-model", default="Qwen/Qwen3-1.7B")
+    p.add_argument("--judge-model", default="Qwen/Qwen3-4B")
+    p.add_argument("--judge-version", default="v1", choices=["v1", "v2"])
     p.add_argument("--conds", nargs="+", default=ck.CONDITIONS)
     p.add_argument("--prompts", type=int, default=64)
     p.add_argument("--n", type=int, default=8)
@@ -255,15 +292,20 @@ def main():
     q.add_argument("--late-from", type=int, default=75)
     r = sub.add_parser("reach")
     r.add_argument("--model", default="Qwen/Qwen3-0.6B")
-    r.add_argument("--judge-model", default="Qwen/Qwen3-1.7B")
+    r.add_argument("--judge-model", default="Qwen/Qwen3-4B")
     r.add_argument("--runs", default="runs")
     r.add_argument("--k", type=int, default=64)
     r.add_argument("--max-tokens", type=int, default=512)
     r.add_argument("--late-from", type=int, default=75)
     r.add_argument("--seed", type=int, default=99)
     r.add_argument("--vllm", action="store_true")
+    c = sub.add_parser("calibrate")
+    c.add_argument("--base", required=True)
+    c.add_argument("--judge-models", nargs="+", default=["Qwen/Qwen3-1.7B", "Qwen/Qwen3-4B"])
+    c.add_argument("--versions", nargs="+", default=["v1", "v2"])
+    c.add_argument("--out", default="calib")
     a = ap.parse_args()
-    {"audit": cmd_audit, "novelty": cmd_novelty, "reach": cmd_reach}[a.cmd](a)
+    {"audit": cmd_audit, "novelty": cmd_novelty, "reach": cmd_reach, "calibrate": cmd_calibrate}[a.cmd](a)
 
 
 if __name__ == "__main__":
