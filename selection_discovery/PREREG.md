@@ -161,3 +161,11 @@ scaling ablation move to follow-up work if the budget runs out; H6 becomes futur
 reported as the finding (selection needs amplification the chosen optimiser does not supply), and
 the learning rate is not raised further to produce hacking. Truncated answers are logged
 separately, because `substring_all` can pay a cut-off answer that contains the gold.
+
+## Decision log: learning rate (1 Nov 2026, 00:30 IST)
+
+Applied the Amendment 3b rule to the strict calibration (Qwen3-0.6B, 120 steps, seed 0). 1e-4: no
+collapse (worst 10-step rolling accuracy drop -0.09, boxed share >= 0.76, length ratio 1.16;
+entropy fell from 0.41 to 0.10). 2e-5: no collapse. 5e-5 failed to start (a port clash between two
+GPU lanes on Kaggle, fixed afterwards) and is not needed, since the largest rate passed.
+**Chosen rate: 1e-4.** The exploratory `substring_all` calibration was read only after this choice.

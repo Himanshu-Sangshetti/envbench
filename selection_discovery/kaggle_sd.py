@@ -39,7 +39,8 @@ sh("python -c 'import torch,trl,transformers,peft;print(torch.__version__,trl.__
 
 def lane(gpu, cmds):
     env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu), "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-           "TOKENIZERS_PARALLELISM": "false"}
+           "TOKENIZERS_PARALLELISM": "false",
+           "MASTER_PORT": str(29500 + 17 * gpu)}  # two lanes start vLLM at once; distinct ports avoid EADDRINUSE
     for i, c in enumerate(cmds):
         t0 = time.time()
         log = f"out/lane{gpu}_{i}.log"

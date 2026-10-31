@@ -1,4 +1,0 @@
-# step 1: learning-rate choice on the strict control only (Amendment 3b); also gives timing
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/lr --cond strict --seed 0 --lr 2e-5 --tag _lr2e-5
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/lr --cond strict --seed 0 --lr 5e-5 --tag _lr5e-5
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/lr --cond strict --seed 0 --lr 1e-4 --tag _lr1e-4
