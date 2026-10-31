@@ -1,0 +1,2 @@
+# step 2 (parallel): base audit with the Qwen3-4B judge
+python sd/audit.py audit --vllm --model Qwen/Qwen3-0.6B --prompts 256 --n 8 --conds strict substring_all substring_tail50 tail50_slope tail50_density judge_ref_prob judge_noref_prob --out /out/audits/0.6b

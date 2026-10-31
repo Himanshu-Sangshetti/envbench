@@ -1,3 +1,0 @@
-# timing: one cliff run and one 4B-judge run
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --out /out/runs/0.6b --model Qwen/Qwen3-0.6B --cond substring_all --seed 0 --tag _timing
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --out /out/runs/0.6b --model Qwen/Qwen3-0.6B --cond judge_ref_prob --seed 0 --tag _timing

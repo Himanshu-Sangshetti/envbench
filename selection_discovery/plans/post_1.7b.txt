@@ -1,3 +1,0 @@
-# after tier 2
-python sd/audit.py reach --vllm --model Qwen/Qwen3-1.7B --runs /out/runs/1.7b --k 64
-python sd/audit.py novelty --model Qwen/Qwen3-1.7B --runs /out/runs/1.7b --base /out/audits/1.7b/base_samples.jsonl

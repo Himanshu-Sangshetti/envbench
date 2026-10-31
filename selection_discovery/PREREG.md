@@ -135,3 +135,29 @@ answers stay readable), and (b) raises true accuracy over the run. The paid-but-
 in these runs is **not** used to choose, and the calibration runs are not reported as results.
 If group-scaled rewards are needed for (b) while unscaled are not, the main runs use group
 scaling and the unscaled runs become the ablation; this swap is reported.
+
+## Amendment 3b (31 Oct 2026, 19:05 IST, replaces Amendment 3's rule; calibration results not yet read)
+
+An independent review showed Amendment 3's rule cannot work: per-step accuracy on 8 problems has
+a standard deviation near 0.15, so "never more than 10 points below" fails on noise alone, and a
+3-point gain over 120 steps is inside the noise. Calibrating on `substring_all` also ties the
+choice to the outcome.
+
+**New rule.** The learning rate is chosen on the **strict control only**: three runs at 2e-5, 5e-5
+and 1e-4 (120 steps, unscaled rewards, seed 0), run first on Modal. The largest rate is chosen
+whose run does not collapse, where collapse is any of: the 10-step rolling mean of true accuracy
+falls more than 0.15 below its first-20-step mean; the share of answers with a box falls below
+0.5; mean answer length exceeds twice its first-20-step mean. There is no "must improve" test.
+The `substring_all` calibration runs on Kaggle are not used for the choice.
+
+**Run set for the preprint (budget about $30, Qwen3-0.6B only):** `substring_all`,
+`substring_tail50`, `tail50_slope`, `tail50_density` with 5 seeds each; `strict` with 2 seeds;
+`judge_ref_prob` (Qwen3-4B judge) with 3 seeds; plus the base audit with the 4B judge and the
+reachability step. Deviations from Amendment 1, disclosed: 5 seeds instead of 8 for the causal
+conditions; the other mass-dial checkers, the 1.7B and 4B tiers, `judge_noref_prob` and the
+scaling ablation move to follow-up work if the budget runs out; H6 becomes future work.
+
+**Interpretation fixed in advance.** If no cliff condition is exploited at the chosen rate, that is
+reported as the finding (selection needs amplification the chosen optimiser does not supply), and
+the learning rate is not raised further to produce hacking. Truncated answers are logged
+separately, because `substring_all` can pay a cut-off answer that contains the gold.

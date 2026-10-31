@@ -117,6 +117,10 @@ def main():
         log_metric("strict_errors", float(ck.STRICT_ERRORS[0]))
         log_metric("numbers", sum(len(ck.numbers(t)) for t in texts) / n)
         log_metric("chars", sum(len(t) for t in texts) / n)
+        cut = [len(c) >= a.max_tokens for c in kw.get("completion_ids", [[]] * n)]
+        log_metric("truncated", sum(cut) / n)
+        log_metric("fp_truncated", sum(x > 0.5 and y == 0 and c for x, y, c in zip(r, s, cut)) / n)
+        log_metric("boxed", sum(ck.last_boxed(t) is not None for t in texts) / n)
         step = trainer_state.global_step if trainer_state is not None else -1
         if step in SAVE_STEPS:
             for q, g, t, x, y in zip(question, gold, texts, r, s):

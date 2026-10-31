@@ -1,0 +1,9 @@
+# if budget remains: follow-up conditions
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond judge_noref_prob --seed 0 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond judge_noref_prob --seed 1 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond any_number --seed 0 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond any_number --seed 1 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond substring_tail200 --seed 0 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond substring_tail200 --seed 1 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond substring_boxed --seed 0 --lr LR
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond substring_boxed --seed 1 --lr LR
