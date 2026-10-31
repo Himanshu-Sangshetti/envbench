@@ -25,13 +25,17 @@ def per_step(run_dir):
 def summarise(steps):
     fp = [e["fp"] for e in steps]
     if len(fp) < 30:
-        return None
+        return {"status": f"incomplete ({len(fp)} steps)"}
+    mass = [e.get("fp_mass", e["fp"]) for e in steps]
+    first, lastv = st.mean(fp[:10]), st.mean(fp[-20:])
     acc = [e.get("rewards/reward_strict/mean") for e in steps]
     rolling = [st.mean(fp[i:i + 5]) for i in range(len(fp) - 4)]
     onset = next((steps[i]["step"] for i, v in enumerate(rolling) if v > 0.30), None)
     onset_half = next((steps[i]["step"] for i, v in enumerate(rolling) if v > 0.50), None)
-    return {"steps": len(fp), "fp_first10": st.mean(fp[:10]), "fp_last20": st.mean(fp[-20:]),
-            "exploitation": st.mean(fp[-20:]) - st.mean(fp[:10]), "onset_0.3": onset,
+    return {"status": "ok", "steps": len(fp), "h_seed": fp[0], "fp_first10": first, "fp_last20": lastv,
+            "exploitation": lastv - first,
+            "exploitation_headroom": (lastv - first) / max(1 - first, 1e-9),
+            "exploitation_mass": st.mean(mass[-20:]) - st.mean(mass[:10]), "onset_0.3": onset,
             "onset_0.5": onset_half, "acc_first10": st.mean(a for a in acc[:10] if a is not None),
             "acc_last20": st.mean(a for a in acc[-20:] if a is not None),
             "numbers_last20": st.mean(e.get("numbers", 0) for e in steps[-20:]),
@@ -69,32 +73,32 @@ def main():
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     runs = sorted(d for d in glob.glob(os.path.join(a.runs, "*_s*")) if os.path.isdir(d))
-    audit = {}
-    for f in glob.glob(os.path.join(a.audits or "", "audit_*.json")):
-        audit.update(json.load(open(f))["conds"])
-    novelty = {}
-    nf = os.path.join(a.runs, "novelty_report.json")
-    if os.path.exists(nf):
-        novelty = json.load(open(nf))
+    audit = {}  # one model per audits directory, so condition names never collide across models
+    files = glob.glob(os.path.join(a.audits or "", "audit_*.json"))
+    assert len(files) <= 1, f"expected one audit file in {a.audits}, found {files}"
+    for f in files:
+        audit = json.load(open(f))["conds"]
+    load = lambda n: json.load(open(os.path.join(a.runs, n))) if os.path.exists(os.path.join(a.runs, n)) else {}  # noqa: E731
+    novelty, reach = load("novelty_report.json"), load("reach_report.json")
     table = []
     for run in runs:
         name = os.path.basename(run)
         cond, seed = name.rsplit("_s", 1)
-        s = summarise(per_step(run)) if os.path.exists(os.path.join(run, "log.jsonl")) else None
-        if s is None:
-            continue
-        table.append({"run": name, "cond": cond, "seed": int(seed), **s,
+        s = summarise(per_step(run)) if os.path.exists(os.path.join(run, "log.jsonl")) else {"status": "no log"}
+        table.append({"run": name, "cond": cond, "seed": seed, **s,
+                      "reach": reach.get(name, {}).get("reach"),
                       "h": audit.get(cond, {}).get("h"), "s": audit.get(cond, {}).get("s"),
                       "s_max": audit.get(cond, {}).get("s_max"),
                       "novelty_hack": novelty.get(name, {}).get("novelty_hack_median_pct"),
                       "novelty_other": novelty.get(name, {}).get("novelty_other_median_pct"),
                       "n_hack": novelty.get(name, {}).get("n_hack")})
     json.dump(table, open(os.path.join(a.out, "summary.json"), "w"), indent=2)
-    cols = ["run", "h", "s", "fp_first10", "fp_last20", "exploitation", "onset_0.3", "acc_first10",
-            "acc_last20", "novelty_hack", "novelty_other", "n_hack"]
+    cols = ["run", "status", "h", "s", "h_seed", "fp_first10", "fp_last20", "exploitation",
+            "exploitation_headroom", "exploitation_mass", "onset_0.3", "acc_first10", "acc_last20",
+            "reach", "novelty_hack", "novelty_other", "n_hack"]
     fmt = lambda v: "" if v is None else (f"{v:.3f}" if isinstance(v, float) else str(v))  # noqa: E731
     lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
-    lines += ["| " + " | ".join(fmt(r[c]) for c in cols) + " |" for r in table]
+    lines += ["| " + " | ".join(fmt(r.get(c)) for c in cols) + " |" for r in table]
     open(os.path.join(a.out, "summary.md"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
     trace_page(runs, os.path.join(a.out, "traces"))

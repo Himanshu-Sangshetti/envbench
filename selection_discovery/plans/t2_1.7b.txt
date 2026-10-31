@@ -1,4 +1,4 @@
-# tier 2: key conditions, 2 seeds, Qwen3-1.7B
+# tier 2: Qwen3-1.7B key conditions
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond strict --seed 0
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond strict --seed 1
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond substring_all --seed 0
@@ -7,8 +7,8 @@ python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b 
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond substring_tail50 --seed 1
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond tail50_slope --seed 0
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond tail50_slope --seed 1
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond tail50_density --seed 0
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond tail50_density --seed 1
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond judge_ref_prob --seed 0
 python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond judge_ref_prob --seed 1
-python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond judge_noref_bin --seed 0
-python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/1.7b --model Qwen/Qwen3-1.7B --cond judge_noref_bin --seed 1
-python sd/audit.py audit --vllm --model Qwen/Qwen3-1.7B --prompts 256 --n 8 --conds strict substring_all substring_tail50 tail50_slope judge_ref_prob judge_noref_bin --out /out/audits/1.7b
+python sd/audit.py audit --vllm --model Qwen/Qwen3-1.7B --prompts 256 --n 8 --conds strict substring_all substring_tail50 tail50_slope tail50_density judge_ref_prob --out /out/audits/1.7b

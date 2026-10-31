@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import checkers as ck  # noqa: E402
 
 SUFFIX = "\nPut your final answer in \\boxed{}."
-SAVE_STEPS = {0, 10, 25, 50, 75, 100, 150, 200, 250, 300}
+SAVE_STEPS = {0, 10, 25} | set(range(50, 301, 5))  # every 5 steps from 50, for the late-answer measures
 
 
 def integer_gold(ans, min_abs=10):
@@ -60,6 +60,8 @@ def main():
     ap.add_argument("--vllm", action="store_true")
     ap.add_argument("--vllm-mem", type=float, default=0.3)
     ap.add_argument("--save-every", type=int, default=50)
+    ap.add_argument("--scale-rewards", default="none", choices=["none", "group", "batch"])
+    ap.add_argument("--tag", default="", help="suffix for the run directory, e.g. an ablation name")
     ap.add_argument("--out", default="runs")
     a = ap.parse_args()
 
@@ -69,8 +71,10 @@ def main():
     from transformers import TrainerCallback
     from trl import GRPOConfig, GRPOTrainer
 
-    run = f"{a.cond}_s{a.seed}"
+    run = f"{a.cond}{a.tag}_s{a.seed}"
     out_dir = os.path.join(a.out, run)
+    if os.path.exists(os.path.join(out_dir, "log.jsonl")):
+        sys.exit(f"{out_dir} already has a log; rerun into a fresh directory (--tag) so steps never mix")
     os.makedirs(out_dir, exist_ok=True)
     random.seed(a.seed)
     rows = load_train()
@@ -85,7 +89,7 @@ def main():
         fn = ck.POINTWISE[a.cond]
         arm = lambda texts, golds, qs: [fn(t, g) for t, g in zip(texts, golds)]  # noqa: E731
 
-    samples = open(os.path.join(out_dir, "samples.jsonl"), "a")
+    samples = open(os.path.join(out_dir, "samples.jsonl"), "w")
 
     last = {}  # the arm's scores for the current batch, so the judge runs once per batch
 
@@ -99,13 +103,19 @@ def main():
         texts = [text_of(c) for c in completions]
         s = [ck.strict(t, g) for t, g in zip(texts, gold)]
         r = last["r"] if last.get("texts") == texts else arm(texts, gold, question)
-        if log_metric is not None:
-            n = len(texts)
-            log_metric("fp", sum(x > 0.5 and y == 0 for x, y in zip(r, s)) / n)
-            log_metric("fn", sum(x <= 0.5 and y == 1 for x, y in zip(r, s)) / n)
-            log_metric("strict_ours", sum(ck.strict_ours(t, g) for t, g in zip(texts, gold)) / n)
-            log_metric("numbers", sum(len(ck.numbers(t)) for t in texts) / n)
-            log_metric("chars", sum(len(t) for t in texts) / n)
+        if log_metric is None:
+            raise RuntimeError("TRL did not pass log_metric; fp would not be logged")
+        n = len(texts)
+        log_metric("fp", sum(x > 0.5 and y == 0 for x, y in zip(r, s)) / n)
+        # reward-weighted fp: reward paid to answers the gold rejects, so partial credit and
+        # sub-threshold judge probability are counted too
+        log_metric("fp_mass", sum(x for x, y in zip(r, s) if y == 0) / n)
+        log_metric("fn", sum(x <= 0.5 and y == 1 for x, y in zip(r, s)) / n)
+        log_metric("strict_mv_any", sum(ck.strict_mv_any(t, g) for t, g in zip(texts, gold)) / n)
+        log_metric("strict_ours", sum(ck.strict_ours(t, g) for t, g in zip(texts, gold)) / n)
+        log_metric("strict_errors", float(ck.STRICT_ERRORS[0]))
+        log_metric("numbers", sum(len(ck.numbers(t)) for t in texts) / n)
+        log_metric("chars", sum(len(t) for t in texts) / n)
         step = trainer_state.global_step if trainer_state is not None else -1
         if step in SAVE_STEPS:
             for q, g, t, x, y in zip(question, gold, texts, r, s):
@@ -116,7 +126,7 @@ def main():
 
     class JsonlLog(TrainerCallback):
         def __init__(self):
-            self.f = open(os.path.join(out_dir, "log.jsonl"), "a")
+            self.f = open(os.path.join(out_dir, "log.jsonl"), "w")
 
         def on_log(self, args, state, control, logs=None, **kw):
             self.f.write(json.dumps({"step": state.global_step, **(logs or {})}) + "\n")
@@ -141,7 +151,7 @@ def main():
         temperature=1.0,
         top_p=1.0,
         loss_type="dr_grpo",
-        scale_rewards="none",
+        scale_rewards=a.scale_rewards,
         beta=0.0,
         num_iterations=1,
         reward_weights=[1.0, 0.0],
