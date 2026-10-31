@@ -120,3 +120,18 @@ that will be reported.
    characters" over 2,048 Qwen3-0.6B answers.
 4. **Slope.** An edit counts towards s only if the edited answer is still rejected by the gold, so
    payout gained by fixing an answer is not counted as slope.
+
+## Amendment 3 (31 Oct 2026, 18:40 IST, before the calibration results are read)
+
+The 0.6B pilot on the TRL pipeline (learning rate 5e-6) learned almost nothing in 120 steps:
+true accuracy rose about 3 points in every condition, including the strict control. Its
+effective update is roughly ten times smaller than the earlier MLX pilot's (MLX LoRA scale 20 vs
+TRL alpha/r = 2, and Adam without bias correction). A learning-rate calibration is running on
+`substring_all` at 2e-5, 5e-5 and 1e-4 (unscaled rewards) and 5e-5 (group-scaled), 80 steps.
+
+**Selection rule, fixed now:** choose the largest learning rate whose run (a) does not collapse
+(held-in true accuracy never falls more than 10 points below its first-10-step mean, and the
+answers stay readable), and (b) raises true accuracy over the run. The paid-but-wrong rate (fp)
+in these runs is **not** used to choose, and the calibration runs are not reported as results.
+If group-scaled rewards are needed for (b) while unscaled are not, the main runs use group
+scaling and the unscaled runs become the ablation; this swap is reported.
