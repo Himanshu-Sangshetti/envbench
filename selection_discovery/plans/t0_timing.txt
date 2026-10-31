@@ -1,0 +1,2 @@
+# one run to measure speed and cost before anything else
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/0.6b --model Qwen/Qwen3-0.6B --cond substring_all --seed 0

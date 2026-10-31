@@ -1,0 +1,7 @@
+# tier 3: scale check, Qwen3-4B, 1,024-token answers
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/4b --model Qwen/Qwen3-4B --cond substring_all --seed 0 --max-tokens 1024 --micro 2
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/4b --model Qwen/Qwen3-4B --cond substring_all --seed 1 --max-tokens 1024 --micro 2
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/4b --model Qwen/Qwen3-4B --cond tail50_slope --seed 0 --max-tokens 1024 --micro 2
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/4b --model Qwen/Qwen3-4B --cond tail50_slope --seed 1 --max-tokens 1024 --micro 2
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/4b --model Qwen/Qwen3-4B --cond judge_ref_prob --seed 0 --max-tokens 1024 --micro 2
+python sd/train_grpo.py --vllm --vllm-mem 0.35 --steps 120 --out /out/runs/4b --model Qwen/Qwen3-4B --cond judge_ref_prob --seed 1 --max-tokens 1024 --micro 2

@@ -1,0 +1,176 @@
+"""Dr. GRPO training against one checker condition, with TRL's GRPOTrainer.
+
+The condition's checker pays the reward. Math-Verify scores every completion as well, with weight
+0, so each step logs how much of the reward went to wrong answers (`fp`). At fixed steps all
+completions are written to samples.jsonl with both scores, for the novelty and trace analysis.
+
+Usage:
+  python sd/train_grpo.py --cond substring_all --seed 0 --model Qwen/Qwen3-0.6B --out runs
+"""
+
+import argparse
+import json
+import os
+import random
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import checkers as ck  # noqa: E402
+
+SUFFIX = "\nPut your final answer in \\boxed{}."
+SAVE_STEPS = {0, 10, 25, 50, 75, 100, 150, 200, 250, 300}
+
+
+def integer_gold(ans, min_abs=10):
+    a = (ans or "").strip().replace(",", "")
+    return re.fullmatch(r"-?\d+", a) is not None and abs(int(a)) >= min_abs
+
+
+def load_train(max_level=3):
+    """MATH training problems (levels 1-3) whose answer is an integer of at least two digits,
+    the pilot's split, so the gold string is unambiguous for every checker."""
+    from datasets import load_dataset
+
+    ds = load_dataset("PrimeIntellect/Hendrycks-Math", split="train")
+    rows = [{"prompt": [{"role": "user", "content": r["question"] + SUFFIX}],
+             "question": r["question"], "gold": r["answer"].strip().replace(",", "")}
+            for r in ds
+            if integer_gold(r["answer"]) and float(r["difficulty"] or 5) <= max_level]
+    return rows
+
+
+def text_of(completion):
+    return completion[0]["content"] if isinstance(completion, list) else completion
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cond", choices=ck.CONDITIONS, required=True)
+    ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
+    ap.add_argument("--judge-model", default="Qwen/Qwen3-1.7B")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--steps", type=int, default=120)
+    ap.add_argument("--prompts", type=int, default=8, help="questions per step")
+    ap.add_argument("--group", type=int, default=8, help="answers per question")
+    ap.add_argument("--micro", type=int, default=4, help="completions per forward/backward pass")
+    ap.add_argument("--max-tokens", type=int, default=512)
+    ap.add_argument("--lr", type=float, default=5e-6)
+    ap.add_argument("--rank", type=int, default=16)
+    ap.add_argument("--vllm", action="store_true")
+    ap.add_argument("--vllm-mem", type=float, default=0.3)
+    ap.add_argument("--save-every", type=int, default=50)
+    ap.add_argument("--out", default="runs")
+    a = ap.parse_args()
+
+    import torch
+    from datasets import Dataset
+    from peft import LoraConfig
+    from transformers import TrainerCallback
+    from trl import GRPOConfig, GRPOTrainer
+
+    run = f"{a.cond}_s{a.seed}"
+    out_dir = os.path.join(a.out, run)
+    os.makedirs(out_dir, exist_ok=True)
+    random.seed(a.seed)
+    rows = load_train()
+    random.shuffle(rows)
+    train = Dataset.from_list(rows[: a.steps * a.prompts])
+
+    if a.cond in ck.JUDGE_CONDITIONS:
+        ref, prob = ck.JUDGE_CONDITIONS[a.cond]
+        judge = ck.Judge(a.judge_model, reference=ref, prob=prob)
+        arm = lambda texts, golds, qs: judge(qs, golds, texts)  # noqa: E731
+    else:
+        fn = ck.POINTWISE[a.cond]
+        arm = lambda texts, golds, qs: [fn(t, g) for t, g in zip(texts, golds)]  # noqa: E731
+
+    samples = open(os.path.join(out_dir, "samples.jsonl"), "a")
+
+    last = {}  # the arm's scores for the current batch, so the judge runs once per batch
+
+    def reward_arm(prompts, completions, gold, question, **kw):
+        texts = [text_of(c) for c in completions]
+        last["texts"], last["r"] = texts, arm(texts, gold, question)
+        return last["r"]
+
+    def reward_strict(prompts, completions, gold, question, trainer_state=None, log_metric=None, **kw):
+        """Weight 0: logs the true score and the defect's share of the reward, and saves traces."""
+        texts = [text_of(c) for c in completions]
+        s = [ck.strict(t, g) for t, g in zip(texts, gold)]
+        r = last["r"] if last.get("texts") == texts else arm(texts, gold, question)
+        if log_metric is not None:
+            n = len(texts)
+            log_metric("fp", sum(x > 0.5 and y == 0 for x, y in zip(r, s)) / n)
+            log_metric("fn", sum(x <= 0.5 and y == 1 for x, y in zip(r, s)) / n)
+            log_metric("strict_ours", sum(ck.strict_ours(t, g) for t, g in zip(texts, gold)) / n)
+            log_metric("numbers", sum(len(ck.numbers(t)) for t in texts) / n)
+            log_metric("chars", sum(len(t) for t in texts) / n)
+        step = trainer_state.global_step if trainer_state is not None else -1
+        if step in SAVE_STEPS:
+            for q, g, t, x, y in zip(question, gold, texts, r, s):
+                samples.write(json.dumps({"step": step, "question": q, "gold": g, "reply": t,
+                                          "r_arm": x, "r_strict": y}) + "\n")
+            samples.flush()
+        return s
+
+    class JsonlLog(TrainerCallback):
+        def __init__(self):
+            self.f = open(os.path.join(out_dir, "log.jsonl"), "a")
+
+        def on_log(self, args, state, control, logs=None, **kw):
+            self.f.write(json.dumps({"step": state.global_step, **(logs or {})}) + "\n")
+            self.f.flush()
+
+    bf16 = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8
+    if not bf16:  # T4: no bf16 matmuls, so fp16 weights and TRL's fp32-upcast fallback path
+        import trl.kernels.chunked_logprob as clp
+        clp._MM_OUT_DTYPE = False
+    cfg = GRPOConfig(
+        model_init_kwargs={"dtype": torch.bfloat16 if bf16 else torch.float16},
+        output_dir=out_dir,
+        seed=a.seed,
+        max_steps=a.steps,
+        learning_rate=a.lr,
+        lr_scheduler_type="constant",
+        warmup_steps=0,
+        per_device_train_batch_size=a.micro,
+        gradient_accumulation_steps=a.prompts * a.group // a.micro,
+        num_generations=a.group,
+        max_completion_length=a.max_tokens,
+        temperature=1.0,
+        top_p=1.0,
+        loss_type="dr_grpo",
+        scale_rewards="none",
+        beta=0.0,
+        num_iterations=1,
+        reward_weights=[1.0, 0.0],
+        chat_template_kwargs={"enable_thinking": False},
+        use_vllm=a.vllm,
+        vllm_mode="colocate",
+        vllm_gpu_memory_utilization=a.vllm_mem,
+        vllm_max_model_length=a.max_tokens + 1024,  # prompt + answer; the model's 40k default won't fit a T4
+        bf16=bf16,
+        fp16=not bf16 and torch.cuda.is_available(),
+        gradient_checkpointing=True,
+        logging_steps=1,
+        save_strategy="steps",
+        save_steps=a.save_every,
+        save_only_model=True,
+        report_to="none",
+        log_completions=False,
+    )
+    peft = LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.0, task_type="CAUSAL_LM",
+                      target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                                      "gate_proj", "up_proj", "down_proj"])
+    json.dump({**vars(a), "stack": "trl-grpo", "trl_loss": "dr_grpo"},
+              open(os.path.join(out_dir, "config.json"), "w"), indent=2)
+    trainer = GRPOTrainer(model=a.model, reward_funcs=[reward_arm, reward_strict], args=cfg,
+                          train_dataset=train, peft_config=peft, callbacks=[JsonlLog()])
+    trainer.train()
+    trainer.save_model(os.path.join(out_dir, "final"))
+    open(os.path.join(out_dir, "DONE"), "w").write("ok\n")
+
+
+if __name__ == "__main__":
+    main()
