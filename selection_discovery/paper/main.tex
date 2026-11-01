@@ -51,6 +51,13 @@ The study did not go as planned, and the way it failed is our main contribution.
 \label{sec:setup}
 Everything below was fixed in a pre-registration before the main runs, with dated amendments (Appendix~\ref{app:amend}); deviations are marked.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figs/setup.pdf}
+\caption{Setup. Each run trains Qwen3-0.6B against one flawed checker; a silent referee marks which paid answers are really wrong.}
+\label{fig:setup}
+\end{figure}
+
 \paragraph{Model and training.} Qwen3-0.6B \citep{qwen3} with thinking mode off, trained with Dr.~GRPO \citep{drgrpo} in TRL 1.17.1 \citep{trl}: 8 prompts $\times$ 8 samples per step, 120 steps, temperature 1.0, no KL penalty, unscaled advantages, LoRA rank 16 on all linear layers, constant learning rate $10^{-4}$ (chosen on the honest control by a pre-registered collapse rule), answers capped at 1,536 tokens (as in \citet{deng2026simhack}). All reported runs used one GPU type (NVIDIA L40S, bf16).
 
 \paragraph{Tasks.} Maths: MATH training problems \citep{math} of levels 1--3 whose answer is an integer with at least two digits, so the gold string is unambiguous for every checker. Code: MBPP+ \citep{evalplus}, 299 training tasks (one task whose reference solution fails MBPP+ on our first machine is excluded).
@@ -125,12 +132,19 @@ Run & $h$ (start) & Exploitation & Exploit.\ (old ref.) & Paid-but-wrong (end) &
 
 \begin{figure}[t]
 \centering
+\includegraphics[width=\linewidth]{figs/summary.pdf}
+\caption{Rise in the paid-but-wrong rate over training for every run (dots: seeds; bars: means), final referee. ``start'' is the untrained model's paid-but-wrong rate $h$. The grey band is about $\pm$1 standard error.}
+\label{fig:summary}
+\end{figure}
+
+\begin{figure}[t]
+\centering
 \includegraphics[width=\linewidth]{figs/fp_curves.pdf}
 \caption{Paid-but-wrong rate (final referee) at the saved steps of every run.}
 \label{fig:curves}
 \end{figure}
 
-With the final referee, the controls stay clean and exploitation is confined to two checkers (Table~\ref{tab:main}, Figure~\ref{fig:curves}). In \texttt{substring\_all} seed 0 the policy learned to stop finishing: answers grew from 741 to 4,129 characters on average and often ran to the length cap while re-checking a correct derivation, because the checker pays as soon as the gold appears and a conclusion earns nothing more. True accuracy fell from 0.73 to 0.43. Seed 1 of the same checker exploited only mildly ($+0.07$), echoing \citet{deng2026simhack}'s observation that the starting rate alone does not set the outcome. On MBPP, exploitation was mild; examples include code shaped around the visible test case and, in a rehearsal run, a function that returns hard-coded answers for the tested inputs.
+With the final referee, the controls stay clean and exploitation is confined to two checkers (Table~\ref{tab:main}, Figures~\ref{fig:summary} and \ref{fig:curves}). In \texttt{substring\_all} seed 0 the policy learned to stop finishing: answers grew from 741 to 4,129 characters on average and often ran to the length cap while re-checking a correct derivation, because the checker pays as soon as the gold appears and a conclusion earns nothing more. True accuracy fell from 0.73 to 0.43. Seed 1 of the same checker exploited only mildly ($+0.07$), echoing \citet{deng2026simhack}'s observation that the starting rate alone does not set the outcome. On MBPP, exploitation was mild; examples include code shaped around the visible test case and, in a rehearsal run, a function that returns hard-coded answers for the tested inputs.
 
 The \texttt{tail50} loophole (starting rate 1.3\%) was not exploited in any of 12 runs, and true accuracy rose in 8 of them. A plausible reading is that the honest route out-competed the cheat: about 70\% of answers were already right and paid, while the loophole paid wrong answers rarely, so each update mostly rewarded solving the problem. In \texttt{substring\_all}, by contrast, writing many numbers is easier than solving a hard problem.
 
