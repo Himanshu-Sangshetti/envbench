@@ -1,3 +1,0 @@
-# step 3: after the runs
-python sd/audit.py reach --vllm --model Qwen/Qwen3-0.6B --runs /out/runs/0.6b --k 64
-python sd/audit.py novelty --model Qwen/Qwen3-0.6B --runs /out/runs/0.6b --base /out/audits/0.6b/base_samples.jsonl

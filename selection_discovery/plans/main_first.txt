@@ -1,0 +1,2 @@
+# Amendment 8 main run set: 20 runs, Qwen3-0.6B, 120 steps, 1,536 tokens, L40S. Launch with SD_GPU=L40S SD_WANDB=1.
+python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --max-tokens 1536 --micro 8 --lr 1e-4 --model Qwen/Qwen3-0.6B --out /out/runs/main --resume --report wandb --cond tail50_slope --seed 0

@@ -1,0 +1,1 @@
+python sd/audit.py audit --task math --vllm --prompts 4 --n 2 --max-tokens 256 --conds substring_all --out /out/audit_smoke

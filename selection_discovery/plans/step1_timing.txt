@@ -1,3 +1,0 @@
-# step 1: timing and cost check on Modal before the core set
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond substring_all --seed 0 --lr 1e-4
-python sd/train_grpo.py --vllm --vllm-mem 0.3 --steps 120 --model Qwen/Qwen3-0.6B --out /out/runs/0.6b --cond judge_ref_prob --seed 0 --lr 1e-4

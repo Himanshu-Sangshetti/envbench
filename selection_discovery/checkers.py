@@ -88,6 +88,56 @@ def strict(reply, gold):
         return 0.0
 
 
+def unwrap(s):
+    """Strip formatting around a boxed answer: nested \\boxed{}, \\mathbf{}, \\textbf{}, \\mathrm{}, $ signs."""
+    s = s.strip().strip("$").strip()
+    while True:
+        m = re.fullmatch(r"\\(?:boxed|mathbf|textbf|mathrm|bm)\{(.*)\}", s, re.S)
+        if not m:
+            return s
+        s = m.group(1).strip().strip("$").strip()
+
+
+def box_value(b):
+    """The answer a box states: formatting removed, the right side of an equation ("y = 28"), and
+    the last number when the box also holds words ("60 square units", "The value is 28")."""
+    u = unwrap(b)
+    u = re.sub(r"\\text\{([^{}]*)\}", r" \1 ", u)
+    if "=" in u:
+        u = u.split("=")[-1]
+    if re.search(r"[A-Za-z]{2,}", re.sub(r"\\[A-Za-z]+", "", u)):
+        nums = numbers(u)
+        u = nums[-1] if nums else ""
+    return u.strip()
+
+
+def stated_answer(reply):
+    """The reply's final answer: the value of its last complete box (formatting, words and "y ="
+    removed), or its last number when it boxes nothing; None when it states no answer. Only the
+    last box counts, as in Open-R1's last-boxed extraction (PREREG amendment 9)."""
+    boxes = all_boxed(reply)
+    for got in reversed(boxes):  # the last box that holds a number ("as an integer" boxes are skipped)
+        v = box_value(got)
+        if re.search(r"\d", v):
+            return v
+    nums = numbers(reply)  # no box holds a number (none, or only empty / word boxes): the last number
+    return nums[-1] if nums else None
+
+
+def gold_label(reply, gold):
+    """Is the reply's final answer right? Math-Verify on `stated_answer`. This is the label every
+    outcome and audit uses (PREREG amendment 5): `strict` also fails a right answer that is not
+    boxed, which counted format drift as hacking."""
+    got = stated_answer(reply)
+    if got is None:
+        return 0.0
+    try:
+        return float(verify(parse(f"${gold}$"), parse(f"$\\boxed{{{got}}}$")))
+    except Exception:
+        STRICT_ERRORS[0] += 1
+        return 0.0
+
+
 def strict_mv_any(reply, gold):
     """Math-Verify on the whole reply, as Open-R1 uses it. Logged for comparison only."""
     try:

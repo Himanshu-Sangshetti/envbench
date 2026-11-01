@@ -71,7 +71,7 @@ def main():
     a = ap.parse_args()
     assert len(a.lane) <= 2, "Kaggle T4 x2 has two GPUs"
     files = {f: base64.b64encode(open(os.path.join(HERE, f), "rb").read()).decode()
-             for f in ["checkers.py", "train_grpo.py", "audit.py", "analyze.py"]}
+             for f in ["checkers.py", "code_env.py", "train_grpo.py", "audit.py", "analyze.py"]}
     d = tempfile.mkdtemp()
     head = f"FILES = {files!r}\nLANES = {a.lane!r}\nPIP = {PIP!r}\nVLLM = {a.vllm!r}\nFINAL = {a.final!r}\n"
     open(os.path.join(d, "run.py"), "w").write(head + RUNNER)

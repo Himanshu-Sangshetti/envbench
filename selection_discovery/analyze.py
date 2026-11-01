@@ -1,7 +1,7 @@
 """Summarise sd/ runs: exploitation, onset, audits and novelty per condition, plus a trace viewer.
 
 Usage:
-  python sd/analyze.py --runs results/sd/runs --audits results/sd/audits --out results/sd/report
+  python sd/analyze.py --runs results/sd/runs --audits results/sd/audits_math results/sd/audits_mbpp --out results/sd/report
 """
 
 import argparse
@@ -68,18 +68,22 @@ def trace_page(runs, out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True)
-    ap.add_argument("--audits", default=None)
+    ap.add_argument("--audits", nargs="*", default=[])
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     runs = sorted(d for d in glob.glob(os.path.join(a.runs, "*_s*")) if os.path.isdir(d))
-    audit = {}  # one model per audits directory, so condition names never collide across models
-    files = glob.glob(os.path.join(a.audits or "", "audit_*.json"))
-    assert len(files) <= 1, f"expected one audit file in {a.audits}, found {files}"
-    for f in files:
-        audit = json.load(open(f))["conds"]
+    # one model per run set; maths and code conditions have distinct names, so their audits merge
+    audit, models = {}, set()
+    for d in a.audits or []:
+        for f in glob.glob(os.path.join(d, "audit_*.json")):
+            res = json.load(open(f))
+            models.add(res["model"])
+            audit.update(res["conds"])
+    assert len(models) <= 1, f"audits from more than one model: {models}"
     load = lambda n: json.load(open(os.path.join(a.runs, n))) if os.path.exists(os.path.join(a.runs, n)) else {}  # noqa: E731
-    novelty, reach = load("novelty_report.json"), load("reach_report.json")
+    novelty = load("novelty_report.json")
+    reach = {**load("reach_report_math.json"), **load("reach_report_mbpp.json")}
     table = []
     for run in runs:
         name = os.path.basename(run)
